@@ -68,7 +68,7 @@ const supabaseClient = supabase.createClient(
 
 const fileInput = document.getElementById("file");
 const titleInput = document.getElementById("title");
-const videos = document.getElementById("videos");
+const videos = document.getElementById("Video");
 
 // Upload function
 async function upload() {
@@ -102,7 +102,7 @@ async function upload() {
   }
 
   // Insert into "videos" table
-  const { error: insertError } = await supabaseClient.from("videos").insert({
+  const { error: insertError } = await supabaseClient.from("Video").insert({
     title: title,
     url: publicData.publicUrl
   });
@@ -120,7 +120,7 @@ async function upload() {
 
 // Load videos from table
 async function load() {
-  const { data, error } = await supabaseClient.from("videos")
+  const { data, error } = await supabaseClient.from("Video")
     .select("*")
     .order("created_at", { ascending: false });
 
@@ -146,3 +146,4 @@ load();
 
 </body>
 </html>
+
