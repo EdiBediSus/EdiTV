@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniTube</title>
+
+<style>
+body { margin:0; background:#0f0f0f; color:white; font-family:Arial; }
+header { padding:12px; text-align:center; font-size:22px; background:#181818; }
+input,button { width:100%; padding:10px; margin-top:8px; }
+.video { margin:10px; background:#181818; border-radius:10px; padding:8px; }
+video { width:100%; border-radius:8px; }
+</style>
+</head>
+
+<body>
+
+<header>MiniTube</header>
+
+<input id="title" placeholder="Video title">
+<input id="file" type="file" accept="video/*">
+<button onclick="upload()">Upload</button>
+
+<div id="videos"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script>
+const supabase = supabase.createClient(
+  "https://fdwzqfufmnuuerbocwys.supabase.co",
+  "sb_publishable_d3Tspw2Qu0frILfjShe_BA_SgKS5frW"
+);
+
+async function upload() {
+  const file = fileInput.files[0];
+  const title = titleInput.value;
+  if (!file || !title) return alert("Missing");
+
+  const name = Date.now() + file.name;
+  await supabase.storage.from("videos").upload(name, file);
+
+  const url = supabase.storage.from("videos").getPublicUrl(name).data.publicUrl;
+  await supabase.from("videos").insert({ title, url });
+
+  load();
+}
+
+async function load() {
+  const { data } = await supabase.from("videos").select("*");
+  videos.innerHTML = "";
+  data.forEach(v => {
+    videos.innerHTML += `
+      <div class="video">
+        <h3>${v.title}</h3>
+        <video controls src="${v.url}"></video>
+      </div>`;
+  });
+}
+
+load();
+</script>
+
+</body>
+</html>
