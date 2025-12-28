@@ -61,14 +61,15 @@ video {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const supabaseClient = supabase.createClient(
-  "https://fdwzqfufmnuuerbocwys.supabase.co",
-  "sb_publishable_d3Tspw2Qu0frILfjShe_BA_SgKS5frW"
+  "https://fdwzqfufmnuuerbocwys.supabase.co",        // Replace with your Supabase Project URL
+  "sb_publishable_d3Tspw2Qu0frILfjShe_BA_SgKS5frW"     // Replace with your anon public key
 );
 
 const fileInput = document.getElementById("file");
 const titleInput = document.getElementById("title");
 const videos = document.getElementById("videos");
 
+// Upload video
 async function upload() {
   const file = fileInput.files[0];
   const title = titleInput.value;
@@ -76,7 +77,7 @@ async function upload() {
 
   const fileName = Date.now() + "_" + file.name;
 
-  // Upload to Supabase Storage
+  // Upload to storage
   const { error: uploadError } = await supabaseClient.storage
     .from("videos")
     .upload(fileName, file);
@@ -107,10 +108,13 @@ async function upload() {
     return;
   }
 
-  // Reload videos
+  alert("Upload successful!");
+  titleInput.value = "";
+  fileInput.value = "";
   load();
 }
 
+// Load videos from table
 async function load() {
   const { data, error } = await supabaseClient.from("videos")
     .select("*")
