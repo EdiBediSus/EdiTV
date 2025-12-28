@@ -60,26 +60,30 @@ video {
 <!-- Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// Replace these with your Supabase info
 const supabaseClient = supabase.createClient(
-  "https://fdwzqfufmnuuerbocwys.supabase.co",        // Replace with your Supabase Project URL
-  "sb_publishable_d3Tspw2Qu0frILfjShe_BA_SgKS5frW"     // Replace with your anon public key
+  "https://fdwzqfufmnuuerbocwys.supabase.co", 
+  "sb_publishable_d3Tspw2Qu0frILfjShe_BA_SgKS5frW" 
 );
 
 const fileInput = document.getElementById("file");
 const titleInput = document.getElementById("title");
 const videos = document.getElementById("videos");
 
-// Upload video
+// Upload function
 async function upload() {
   const file = fileInput.files[0];
   const title = titleInput.value;
-  if (!file || !title) return alert("Missing title or file");
+
+  if (!file || !title) {
+    return alert("Please select a file and enter a title");
+  }
 
   const fileName = Date.now() + "_" + file.name;
 
-  // Upload to storage
+  // Upload to your bucket "Video"
   const { error: uploadError } = await supabaseClient.storage
-    .from("videos")
+    .from("Video")      // <-- MATCH YOUR BUCKET NAME EXACTLY
     .upload(fileName, file);
 
   if (uploadError) {
@@ -89,7 +93,7 @@ async function upload() {
 
   // Get public URL
   const { data: publicData, error: urlError } = supabaseClient.storage
-    .from("videos")
+    .from("Video")      // <-- MATCH YOUR BUCKET NAME EXACTLY
     .getPublicUrl(fileName);
 
   if (urlError) {
@@ -97,7 +101,7 @@ async function upload() {
     return;
   }
 
-  // Insert into table
+  // Insert into "videos" table
   const { error: insertError } = await supabaseClient.from("videos").insert({
     title: title,
     url: publicData.publicUrl
@@ -136,7 +140,7 @@ async function load() {
   });
 }
 
-// Initial load
+// Load videos on page load
 load();
 </script>
 
