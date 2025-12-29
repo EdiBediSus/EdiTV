@@ -15,8 +15,6 @@ header h1{margin:0; font-size:24px;}
 .video{background:#181818; border-radius:10px; overflow:hidden; padding:8px;}
 .video h3{margin:0; font-size:16px;}
 .video video{width:100%; display:block; border-radius:0;}
-.video button{background:darkred; color:white; border:none; border-radius:4px; padding:6px 10px; margin-top:4px; cursor:pointer;}
-.video button:hover{background:red;}
 @media (max-width:768px){
   header{flex-direction:column; align-items:flex-start;}
   #uploadBox{flex-direction:column; gap:8px; padding:12px;}
@@ -39,7 +37,6 @@ header h1{margin:0; font-size:24px;}
 
 <!-- Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- FFmpeg WASM for compression -->
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.10/dist/ffmpeg.min.js"></script>
 
 <script>
@@ -62,13 +59,7 @@ async function load(){
   if(error){ videosDiv.innerText = error.message; return; }
   videosDiv.innerHTML = "";
   data.forEach(v=>{
-    videosDiv.innerHTML += `
-      <div class="video">
-        <h3>${v.title}</h3>
-        <video controls src="${v.url}"></video>
-        <button onclick="deleteVideo('${v.id}', '${v.url}')">Delete</button>
-      </div>
-    `;
+    videosDiv.innerHTML += `<div class="video"><h3>${v.title}</h3><video controls src="${v.url}"></video></div>`;
   });
 }
 
@@ -79,7 +70,7 @@ async function upload(){
   if(!file||!title) return alert("Please select a file and enter a title");
 
   const { createFFmpeg, fetchFile } = FFmpeg;
-  const ffmpeg = createFFmpeg({ log: true });
+  const ffmpeg = createFFmpeg({ log: false });
   if(!ffmpeg.isLoaded()) await ffmpeg.load();
 
   const originalName = sanitize(file.name);
@@ -87,43 +78,25 @@ async function upload(){
 
   ffmpeg.FS('writeFile', originalName, await fetchFile(file));
 
-  // Compress to 720p mp4
   await ffmpeg.run('-i', originalName, '-vf', 'scale=1280:-2', '-c:v', 'libx264', '-preset', 'fast', '-crf', '28', '-c:a', 'aac', compressedName);
 
   const data = ffmpeg.FS('readFile', compressedName);
   const compressedBlob = new Blob([data.buffer], { type: 'video/mp4' });
   const finalName = Date.now()+"_"+compressedName;
 
-  // Upload to Supabase
+  // Upload to Supabase Storage
   const { error: uploadError } = await supabaseClient.storage.from("Video").upload(finalName, compressedBlob, { upsert:false });
-  if(uploadError) return alert(uploadError.message);
+  if(uploadError) return alert("Upload error: " + uploadError.message);
 
   const { data: urlData } = supabaseClient.storage.from("Video").getPublicUrl(finalName);
 
   // Insert into DB
   const { error: insertError } = await supabaseClient.from("videos").insert({ title, url: urlData.publicUrl });
-  if(insertError) return alert(insertError.message);
+  if(insertError) return alert("DB error: " + insertError.message);
 
   fileInput.value = "";
   titleInput.value = "";
   load();
-}
-
-// Delete video
-async function deleteVideo(id, url){
-  if(!confirm("Are you sure you want to delete this video?")) return;
-  try{
-    const fileName = url.split('/').pop();
-    const { error: storageError } = await supabaseClient.storage.from('Video').remove([fileName]);
-    if(storageError) throw storageError;
-
-    const { error: dbError } = await supabaseClient.from('videos').delete().eq('id', id);
-    if(dbError) throw dbError;
-
-    load();
-  }catch(err){
-    alert("Error deleting video: " + err.message);
-  }
 }
 
 load();
