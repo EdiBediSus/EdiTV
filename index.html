@@ -1,48 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MiniTube</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EdiTV</title>
+
 <style>
-body { margin:0; font-family:Arial,sans-serif; background:#0f0f0f; color:white;}
-header {padding:12px 24px; display:flex; align-items:center; justify-content:space-between; background:#181818;}
-header h1{margin:0; font-size:24px;}
-#uploadBox{padding:12px 24px; display:flex; gap:12px; align-items:center;}
-#uploadBox input[type="text"], #uploadBox input[type="file"]{flex:1; padding:10px; border-radius:6px; border:none;}
-#uploadBox button{background:red; color:white; font-weight:bold; padding:10px 20px; border-radius:6px; border:none; cursor:pointer;}
-#statusMessage{margin:8px 24px; color:yellow; font-weight:bold;}
-#videos{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; padding:12px 24px;}
-.video{background:#181818; border-radius:10px; overflow:hidden; padding:8px;}
-.video h3{margin:0; font-size:16px;}
-.video video{width:100%; display:block; border-radius:0;}
-@media (max-width:768px){
-  header{flex-direction:column; align-items:flex-start;}
-  #uploadBox{flex-direction:column; gap:8px; padding:12px;}
-  #videos{display:flex; flex-direction:column; padding:12px;}
-  .video h3{font-size:14px;}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f0f0f;
+  color: white;
+}
+
+/* HEADER */
+header {
+  padding: 14px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: bold;
+  background: #181818;
+}
+
+/* UPLOAD */
+#uploadBox {
+  padding: 12px;
+  max-width: 600px;
+  margin: auto;
+}
+
+input, button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  border-radius: 6px;
+  border: none;
+}
+
+button {
+  background: red;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* VIDEOS GRID (PC like YouTube) */
+#videos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+/* VIDEO CARD */
+.video {
+  background: #181818;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* VIDEO FRAME (perfect match) */
+.video-player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: black;
+}
+
+.video-player video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* TITLE */
+.video h3 {
+  margin: 10px;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+/* MOBILE */
+@media (max-width: 700px) {
+  #videos {
+    grid-template-columns: 1fr;
+    padding: 8px;
+  }
+
+  header {
+    font-size: 18px;
+  }
 }
 </style>
 </head>
+
 <body>
 
-<header><h1>MiniTube</h1></header>
+<header>EdiTV</header>
 
 <div id="uploadBox">
-  <input id="title" type="text" placeholder="Video title">
-  <input id="file" type="file" accept="video/*">
+  <input id="title" placeholder="Video title" />
+  <input id="file" type="file" accept="video/*" />
   <button onclick="upload()">Upload</button>
+  <p id="status"></p>
 </div>
-
-<div id="statusMessage"></div>
 
 <div id="videos"></div>
 
-<!-- Supabase JS -->
+<!-- SUPABASE -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-// Initialize Supabase
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
@@ -51,65 +123,90 @@ const supabaseClient = supabase.createClient(
 const fileInput = document.getElementById("file");
 const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
-const statusMessage = document.getElementById("statusMessage");
+const statusText = document.getElementById("status");
 
-// Helper: sanitize filename
-function sanitize(name){
-  return name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_.-]/g,"");
+/* SANITIZE FILE NAME */
+function sanitize(name) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_.-]/g, "");
 }
 
-// Load videos from Supabase table
-async function load(){
-  const {data, error} = await supabaseClient.from("videos").select("*").order("created_at",{ascending:false});
-  if(error){ videosDiv.innerText = error.message; return; }
+/* UPLOAD */
+async function upload() {
+  const file = fileInput.files[0];
+  const title = titleInput.value.trim();
+
+  if (!file || !title) {
+    alert("Select a file and title");
+    return;
+  }
+
+  statusText.innerText = "Uploading...";
+
+  const safeName = Date.now() + "_" + sanitize(file.name);
+
+  const { error: uploadError } = await supabaseClient.storage
+    .from("Video")
+    .upload(safeName, file);
+
+  if (uploadError) {
+    statusText.innerText = "Upload error: " + uploadError.message;
+    return;
+  }
+
+  const { data } = supabaseClient.storage
+    .from("Video")
+    .getPublicUrl(safeName);
+
+  const { error: dbError } = await supabaseClient
+    .from("videos")
+    .insert({
+      title: title,
+      url: data.publicUrl
+    });
+
+  if (dbError) {
+    statusText.innerText = "Database error: " + dbError.message;
+    return;
+  }
+
+  statusText.innerText = "✅ Upload successful!";
+  titleInput.value = "";
+  fileInput.value = "";
+
+  loadVideos();
+}
+
+/* LOAD VIDEOS */
+async function loadVideos() {
+  const { data, error } = await supabaseClient
+    .from("videos")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    videosDiv.innerHTML = "Error loading videos";
+    return;
+  }
+
   videosDiv.innerHTML = "";
-  data.forEach(v=>{
-    videosDiv.innerHTML += `<div class="video"><h3>${v.title}</h3><video controls src="${v.url}"></video></div>`;
+
+  data.forEach(v => {
+    videosDiv.innerHTML += `
+      <div class="video">
+        <div class="video-player">
+          <video controls src="${v.url}"></video>
+        </div>
+        <h3>${v.title}</h3>
+      </div>
+    `;
   });
 }
 
-// Upload function (no compression)
-async function upload(){
-  const file = fileInput.files[0];
-  const title = titleInput.value.trim();
-  if(!file || !title){
-    statusMessage.innerText = "⚠️ Please select a file and enter a title";
-    return;
-  }
-
-  statusMessage.innerText = "⏳ Uploading video...";
-
-  const fileName = Date.now() + "_" + sanitize(file.name);
-
-  // Upload to Supabase Storage
-  const { error: uploadError } = await supabaseClient.storage
-    .from("Video")
-    .upload(fileName, file, { upsert:false });
-
-  if(uploadError){
-    statusMessage.innerText = "❌ Upload error: " + uploadError.message;
-    return;
-  }
-
-  const { data: urlData } = supabaseClient.storage.from("Video").getPublicUrl(fileName);
-
-  // Insert into DB table
-  const { error: insertError } = await supabaseClient.from("videos")
-    .insert({ title, url: urlData.publicUrl });
-
-  if(insertError){
-    statusMessage.innerText = "❌ Database error: " + insertError.message;
-    return;
-  }
-
-  statusMessage.innerText = "✅ Upload successful!";
-  fileInput.value = "";
-  titleInput.value = "";
-  load();
-}
-
-// Load videos on page load
-load();
+loadVideos();
 </script>
 
 </body>
