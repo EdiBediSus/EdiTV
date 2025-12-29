@@ -38,13 +38,11 @@ header h1{margin:0; font-size:24px;}
 <div id="statusMessage"></div>
 <div id="videos"></div>
 
-<!-- Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <script>
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCj…(your key)…"
 );
 
 const fileInput = document.getElementById("file");
@@ -57,7 +55,7 @@ function sanitize(name){
              .replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_.-]/g,"");
 }
 
-// Load videos from Supabase
+// Load videos
 async function load(){
   const {data, error} = await supabaseClient.from("videos").select("*").order("created_at",{ascending:false});
   if(error){ videosDiv.innerText = error.message; return; }
@@ -73,7 +71,7 @@ async function load(){
   });
 }
 
-// Play video when clicking thumbnail
+// Play video
 function playVideo(img, videoUrl){
   const container = img.parentElement;
   const video = container.querySelector('video');
@@ -82,7 +80,7 @@ function playVideo(img, videoUrl){
   video.play();
 }
 
-// Upload function with thumbnail generation
+// Upload video + auto-generate thumbnail
 async function upload(){
   const file = fileInput.files[0];
   const title = titleInput.value.trim();
@@ -91,31 +89,32 @@ async function upload(){
     return;
   }
 
-  statusMessage.innerText = "⏳ Uploading video...";
+  statusMessage.innerText = "⏳ Generating thumbnail and uploading...";
 
   const fileName = Date.now() + "_" + sanitize(file.name);
+  const thumbName = "thumb_" + fileName;
 
-  // Generate thumbnail from first frame
-  const videoElement = document.createElement('video');
-  videoElement.src = URL.createObjectURL(file);
-  await new Promise(resolve => videoElement.onloadeddata = resolve);
+  // Generate thumbnail in browser
+  const videoEl = document.createElement('video');
+  videoEl.src = URL.createObjectURL(file);
+  await new Promise(resolve => videoEl.onloadeddata = resolve);
   const canvas = document.createElement('canvas');
-  canvas.width = 320; // thumbnail width
-  canvas.height = videoElement.videoHeight / (videoElement.videoWidth / 320);
-  canvas.getContext('2d').drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-  const blobThumbnail = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.7));
-  const thumbnailName = "thumb_" + fileName;
+  canvas.width = 320;
+  canvas.height = videoEl.videoHeight / (videoEl.videoWidth / 320);
+  canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+  const blobThumb = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.7));
 
   // Upload video
   const { error: uploadError } = await supabaseClient.storage.from("Video").upload(fileName, file, { upsert:false });
   if(uploadError){ statusMessage.innerText = "❌ Upload error: "+uploadError.message; return; }
 
-  const { error: thumbError } = await supabaseClient.storage.from("Video").upload(thumbnailName, blobThumbnail, { upsert:false });
-  if(thumbError){ statusMessage.innerText = "❌ Thumbnail error: "+thumbError.message; return; }
+  // Upload thumbnail
+  const { error: thumbError } = await supabaseClient.storage.from("Video").upload(thumbName, blobThumb, { upsert:false });
+  if(thumbError){ statusMessage.innerText = "❌ Thumbnail upload error: "+thumbError.message; return; }
 
   // Get public URLs
   const { data: videoData } = supabaseClient.storage.from("Video").getPublicUrl(fileName);
-  const { data: thumbData } = supabaseClient.storage.from("Video").getPublicUrl(thumbnailName);
+  const { data: thumbData } = supabaseClient.storage.from("Video").getPublicUrl(thumbName);
 
   // Insert into DB
   const { error: insertError } = await supabaseClient.from("videos").insert({
@@ -134,6 +133,5 @@ async function upload(){
 // Load videos on page load
 load();
 </script>
-
 </body>
 </html>
