@@ -42,7 +42,7 @@ header h1{margin:0; font-size:24px;}
 <script>
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCj…(your key)…"
+  "YOUR_SUPABASE_KEY_HERE"
 );
 
 const fileInput = document.getElementById("file");
@@ -50,12 +50,16 @@ const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
 const statusMessage = document.getElementById("statusMessage");
 
+// Sanitize filenames to ASCII only to prevent Headers error
 function sanitize(name){
-  return name.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-             .replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_.-]/g,"");
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")  // remove accents
+    .replace(/\s+/g,"_")             // replace spaces
+    .replace(/[^a-zA-Z0-9_.-]/g,""); // remove other chars
 }
 
-// Load videos
+// Load videos from Supabase table
 async function load(){
   const {data, error} = await supabaseClient.from("videos").select("*").order("created_at",{ascending:false});
   if(error){ videosDiv.innerText = error.message; return; }
@@ -71,7 +75,7 @@ async function load(){
   });
 }
 
-// Play video
+// Play video when clicking thumbnail
 function playVideo(img, videoUrl){
   const container = img.parentElement;
   const video = container.querySelector('video');
@@ -94,7 +98,7 @@ async function upload(){
   const fileName = Date.now() + "_" + sanitize(file.name);
   const thumbName = "thumb_" + fileName;
 
-  // Generate thumbnail in browser
+  // Generate thumbnail from first frame
   const videoEl = document.createElement('video');
   videoEl.src = URL.createObjectURL(file);
   await new Promise(resolve => videoEl.onloadeddata = resolve);
