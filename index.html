@@ -122,20 +122,28 @@ function isMobile() {
 
 /* GENERATE THUMBNAIL */
 function generateThumbnail(file) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     video.src = URL.createObjectURL(file);
     video.muted = true;
     video.playsInline = true;
 
-    video.onloadeddata = () => {
+    video.onloadedmetadata = () => {
+      video.currentTime = 0.5; // take frame at 0.5s
+    };
+
+    video.onseeked = () => {
       const canvas = document.createElement("canvas");
       canvas.width = 320;
       canvas.height = video.videoHeight * (320 / video.videoWidth);
-
       canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(blob => resolve(blob), "image/jpeg", 0.7);
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject("Thumbnail generation failed");
+      }, "image/jpeg", 0.7);
     };
+
+    video.onerror = (e) => reject("Video load error: " + e);
   });
 }
 
@@ -148,27 +156,40 @@ async function upload() {
   statusText.innerText = "Uploading...";
 
   const safeName = Date.now() + "_" + sanitize(file.name);
-  const thumbName = "thumb_" + safeName + ".jpg";
+  const thumbName = "thumb_" + Date.now() + ".jpg";
 
   // Upload video
-  await supabaseClient.storage.from("Video").upload(safeName, file);
+  const { error: videoError } = await supabaseClient.storage.from("Video").upload(safeName, file);
+  if (videoError) return alert("Video upload failed: " + videoError.message);
 
-  const videoUrl = supabaseClient.storage.from("Video")
-    .getPublicUrl(safeName).data.publicUrl;
+  // Generate thumbnail
+  let thumbBlob;
+  try {
+    thumbBlob = await generateThumbnail(file);
+  } catch (err) {
+    console.error(err);
+    statusText.innerText = "Thumbnail generation failed";
+    return;
+  }
 
-  // Thumbnail
-  const thumbBlob = await generateThumbnail(file);
-  await supabaseClient.storage.from("Video").upload(thumbName, thumbBlob);
+  const { error: thumbError } = await supabaseClient.storage.from("Video").upload(thumbName, thumbBlob);
+  if (thumbError) return alert("Thumbnail upload failed: " + thumbError.message);
 
-  const thumbUrl = supabaseClient.storage.from("Video")
-    .getPublicUrl(thumbName).data.publicUrl;
+  // Get public URLs
+  const { data: videoUrlData } = supabaseClient.storage.from("Video").getPublicUrl(safeName);
+  const { data: thumbUrlData } = supabaseClient.storage.from("Video").getPublicUrl(thumbName);
+
+  const videoUrl = videoUrlData.publicUrl;
+  const thumbUrl = thumbUrlData.publicUrl;
 
   // Save to DB
-  await supabaseClient.from("videos").insert({
+  const { error: dbError } = await supabaseClient.from("videos").insert({
     title,
     url: videoUrl,
     thumbnail_url: thumbUrl
   });
+
+  if (dbError) return alert("DB insert failed: " + dbError.message);
 
   statusText.innerText = "✅ Uploaded!";
   loadVideos();
@@ -185,15 +206,13 @@ function playVideo(url) {
   if (isMobile() && v.requestFullscreen) v.requestFullscreen();
 }
 
-/* LOAD */
+/* LOAD VIDEOS */
 async function loadVideos() {
-  const { data } = await supabaseClient
-    .from("videos")
-    .select("*")
-    .order("created_at", { ascending: false });
-
+  const { data } = await supabaseClient.from("videos").select("*").order("created_at", { ascending: false });
   const videosDiv = document.getElementById("videos");
   videosDiv.innerHTML = "";
+
+  if (!data) return;
 
   data.forEach(v => {
     videosDiv.innerHTML += `
@@ -210,4 +229,3 @@ loadVideos();
 
 </body>
 </html>
-
