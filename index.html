@@ -5,97 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MiniTube</title>
 <style>
-/* Base styles (desktop first) */
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #0f0f0f;
-  color: white;
-}
-header {
-  padding: 12px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #181818;
-}
-header h1 {
-  margin: 0;
-  font-size: 24px;
-}
-#uploadBox {
-  padding: 12px 24px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-#uploadBox input[type="text"], #uploadBox input[type="file"] {
-  flex: 1;
-  padding: 10px;
-  border-radius: 6px;
-  border: none;
-}
-#uploadBox button {
-  background: red;
-  color: white;
-  font-weight: bold;
-  padding: 10px 20px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-}
-
-/* Video grid (desktop style) */
-#videos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-  padding: 12px 24px;
-}
-.video {
-  background: #181818;
-  border-radius: 10px;
-  overflow: hidden;
-}
-.video h3 {
-  padding: 8px;
-  margin: 0;
-  font-size: 16px;
-}
-.video video {
-  width: 100%;
-  display: block;
-  border-radius: 0;
-}
-
-/* Mobile styles */
-@media (max-width: 768px) {
-  header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  #uploadBox {
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-  }
-  #videos {
-    display: flex;
-    flex-direction: column;
-    padding: 12px;
-  }
-  .video h3 {
-    font-size: 14px;
-    padding: 6px;
-  }
+body { margin:0; font-family:Arial,sans-serif; background:#0f0f0f; color:white;}
+header {padding:12px 24px; display:flex; align-items:center; justify-content:space-between; background:#181818;}
+header h1{margin:0; font-size:24px;}
+#uploadBox{padding:12px 24px; display:flex; gap:12px; align-items:center;}
+#uploadBox input[type="text"], #uploadBox input[type="file"]{flex:1; padding:10px; border-radius:6px; border:none;}
+#uploadBox button{background:red; color:white; font-weight:bold; padding:10px 20px; border-radius:6px; border:none; cursor:pointer;}
+#videos{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; padding:12px 24px;}
+.video{background:#181818; border-radius:10px; overflow:hidden;}
+.video h3{padding:8px; margin:0; font-size:16px;}
+.video video{width:100%; display:block; border-radius:0;}
+@media (max-width:768px){
+  header{flex-direction:column; align-items:flex-start;}
+  #uploadBox{flex-direction:column; gap:8px; padding:12px;}
+  #videos{display:flex; flex-direction:column; padding:12px;}
+  .video h3{font-size:14px; padding:6px;}
 }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>MiniTube</h1>
-</header>
+<header><h1>MiniTube</h1></header>
 
 <div id="uploadBox">
   <input id="title" type="text" placeholder="Video title">
@@ -105,7 +35,11 @@ header h1 {
 
 <div id="videos"></div>
 
+<!-- Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- FFmpeg WASM -->
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.10/dist/ffmpeg.min.js"></script>
+
 <script>
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
@@ -116,58 +50,59 @@ const fileInput = document.getElementById("file");
 const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
 
-function sanitize(name) {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9_.-]/g, "");
+// Sanitize filenames
+function sanitize(name){
+  return name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_.-]/g,"");
 }
 
-async function upload() {
+// Load videos
+async function load(){
+  const {data, error} = await supabaseClient.from("videos").select("*").order("created_at",{ascending:false});
+  if(error){ videosDiv.innerText = error.message; return; }
+  videosDiv.innerHTML = "";
+  data.forEach(v=>{
+    videosDiv.innerHTML += `<div class="video"><h3>${v.title}</h3><video controls src="${v.url}"></video></div>`;
+  });
+}
+
+// Upload with compression
+async function upload(){
   const file = fileInput.files[0];
   const title = titleInput.value.trim();
-  if (!file || !title) return alert("Please select a file and enter a title");
+  if(!file||!title) return alert("Please select a file and enter a title");
 
-  const fileName = Date.now() + "_" + sanitize(file.name);
+  // Init ffmpeg
+  const { createFFmpeg, fetchFile } = FFmpeg;
+  const ffmpeg = createFFmpeg({ log: true });
+  if(!ffmpeg.isLoaded()) await ffmpeg.load();
 
-  const { error: uploadError } = await supabaseClient.storage
-    .from("Video")
-    .upload(fileName, file);
-  if (uploadError) return alert(uploadError.message);
+  const originalName = sanitize(file.name);
+  const compressedName = "compressed_" + originalName;
 
-  const { data } = supabaseClient.storage.from("Video").getPublicUrl(fileName);
+  // Read file
+  ffmpeg.FS('writeFile', originalName, await fetchFile(file));
 
-  const { error: insertError } = await supabaseClient
-    .from("videos")
-    .insert({ title, url: data.publicUrl });
-  if (insertError) return alert(insertError.message);
+  // Compress to 720p mp4
+  await ffmpeg.run('-i', originalName, '-vf', 'scale=1280:-2', '-c:v', 'libx264', '-preset', 'fast', '-crf', '28', '-c:a', 'aac', compressedName);
 
-  titleInput.value = "";
+  const data = ffmpeg.FS('readFile', compressedName);
+  const compressedBlob = new Blob([data.buffer], { type: 'video/mp4' });
+
+  const finalName = Date.now()+"_"+compressedName;
+
+  // Upload to Supabase
+  const { error: uploadError } = await supabaseClient.storage.from("Video").upload(finalName, compressedBlob, { upsert:false });
+  if(uploadError) return alert(uploadError.message);
+
+  const { data: urlData } = supabaseClient.storage.from("Video").getPublicUrl(finalName);
+
+  // Insert into table
+  const { error: insertError } = await supabaseClient.from("videos").insert({ title, url: urlData.publicUrl });
+  if(insertError) return alert(insertError.message);
+
   fileInput.value = "";
+  titleInput.value = "";
   load();
-}
-
-async function load() {
-  const { data, error } = await supabaseClient
-    .from("videos")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    videosDiv.innerText = error.message;
-    return;
-  }
-
-  videosDiv.innerHTML = "";
-  data.forEach(v => {
-    videosDiv.innerHTML += `
-      <div class="video">
-        <h3>${v.title}</h3>
-        <video controls src="${v.url}"></video>
-      </div>
-    `;
-  });
 }
 
 load();
