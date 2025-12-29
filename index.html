@@ -6,9 +6,7 @@
 <title>EdiTV</title>
 
 <style>
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -63,7 +61,7 @@ button {
   overflow: hidden;
 }
 
-/* VIDEO FRAME (perfect match) */
+/* VIDEO FRAME */
 .video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -90,7 +88,6 @@ button {
     grid-template-columns: 1fr;
     padding: 8px;
   }
-
   header {
     font-size: 18px;
   }
@@ -111,10 +108,10 @@ button {
 
 <div id="videos"></div>
 
-<!-- SUPABASE -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+/* SUPABASE */
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
@@ -125,13 +122,28 @@ const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
 const statusText = document.getElementById("status");
 
-/* SANITIZE FILE NAME */
+/* HELPERS */
 function sanitize(name) {
   return name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "_")
     .replace(/[^a-zA-Z0-9_.-]/g, "");
+}
+
+function isMobile() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function playFullscreen(video) {
+  if (isMobile()) {
+    if (video.requestFullscreen) {
+      video.requestFullscreen();
+    } else if (video.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();
+    }
+  }
+  video.play();
 }
 
 /* UPLOAD */
@@ -146,11 +158,11 @@ async function upload() {
 
   statusText.innerText = "Uploading...";
 
-  const safeName = Date.now() + "_" + sanitize(file.name);
+  const fileName = Date.now() + "_" + sanitize(file.name);
 
   const { error: uploadError } = await supabaseClient.storage
     .from("Video")
-    .upload(safeName, file);
+    .upload(fileName, file);
 
   if (uploadError) {
     statusText.innerText = "Upload error: " + uploadError.message;
@@ -159,14 +171,11 @@ async function upload() {
 
   const { data } = supabaseClient.storage
     .from("Video")
-    .getPublicUrl(safeName);
+    .getPublicUrl(fileName);
 
   const { error: dbError } = await supabaseClient
     .from("videos")
-    .insert({
-      title: title,
-      url: data.publicUrl
-    });
+    .insert({ title, url: data.publicUrl });
 
   if (dbError) {
     statusText.innerText = "Database error: " + dbError.message;
@@ -198,7 +207,14 @@ async function loadVideos() {
     videosDiv.innerHTML += `
       <div class="video">
         <div class="video-player">
-          <video controls src="${v.url}"></video>
+          <video
+            preload="metadata"
+            muted
+            playsinline
+            controls
+            src="${v.url}"
+            onclick="playFullscreen(this)">
+          </video>
         </div>
         <h3>${v.title}</h3>
       </div>
