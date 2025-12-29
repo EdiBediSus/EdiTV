@@ -12,14 +12,16 @@ header h1{margin:0; font-size:24px;}
 #uploadBox input[type="text"], #uploadBox input[type="file"]{flex:1; padding:10px; border-radius:6px; border:none;}
 #uploadBox button{background:red; color:white; font-weight:bold; padding:10px 20px; border-radius:6px; border:none; cursor:pointer;}
 #videos{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; padding:12px 24px;}
-.video{background:#181818; border-radius:10px; overflow:hidden;}
-.video h3{padding:8px; margin:0; font-size:16px;}
+.video{background:#181818; border-radius:10px; overflow:hidden; padding:8px;}
+.video h3{margin:0; font-size:16px;}
 .video video{width:100%; display:block; border-radius:0;}
+.video button{background:darkred; color:white; border:none; border-radius:4px; padding:6px 10px; margin-top:4px; cursor:pointer;}
+.video button:hover{background:red;}
 @media (max-width:768px){
   header{flex-direction:column; align-items:flex-start;}
   #uploadBox{flex-direction:column; gap:8px; padding:12px;}
   #videos{display:flex; flex-direction:column; padding:12px;}
-  .video h3{font-size:14px; padding:6px;}
+  .video h3{font-size:14px;}
 }
 </style>
 </head>
@@ -37,7 +39,7 @@ header h1{margin:0; font-size:24px;}
 
 <!-- Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- FFmpeg WASM -->
+<!-- FFmpeg WASM for compression -->
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.10/dist/ffmpeg.min.js"></script>
 
 <script>
@@ -50,7 +52,6 @@ const fileInput = document.getElementById("file");
 const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
 
-// Sanitize filenames
 function sanitize(name){
   return name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_.-]/g,"");
 }
@@ -61,7 +62,13 @@ async function load(){
   if(error){ videosDiv.innerText = error.message; return; }
   videosDiv.innerHTML = "";
   data.forEach(v=>{
-    videosDiv.innerHTML += `<div class="video"><h3>${v.title}</h3><video controls src="${v.url}"></video></div>`;
+    videosDiv.innerHTML += `
+      <div class="video">
+        <h3>${v.title}</h3>
+        <video controls src="${v.url}"></video>
+        <button onclick="deleteVideo('${v.id}', '${v.url}')">Delete</button>
+      </div>
+    `;
   });
 }
 
@@ -71,7 +78,6 @@ async function upload(){
   const title = titleInput.value.trim();
   if(!file||!title) return alert("Please select a file and enter a title");
 
-  // Init ffmpeg
   const { createFFmpeg, fetchFile } = FFmpeg;
   const ffmpeg = createFFmpeg({ log: true });
   if(!ffmpeg.isLoaded()) await ffmpeg.load();
@@ -79,7 +85,6 @@ async function upload(){
   const originalName = sanitize(file.name);
   const compressedName = "compressed_" + originalName;
 
-  // Read file
   ffmpeg.FS('writeFile', originalName, await fetchFile(file));
 
   // Compress to 720p mp4
@@ -87,7 +92,6 @@ async function upload(){
 
   const data = ffmpeg.FS('readFile', compressedName);
   const compressedBlob = new Blob([data.buffer], { type: 'video/mp4' });
-
   const finalName = Date.now()+"_"+compressedName;
 
   // Upload to Supabase
@@ -96,13 +100,30 @@ async function upload(){
 
   const { data: urlData } = supabaseClient.storage.from("Video").getPublicUrl(finalName);
 
-  // Insert into table
+  // Insert into DB
   const { error: insertError } = await supabaseClient.from("videos").insert({ title, url: urlData.publicUrl });
   if(insertError) return alert(insertError.message);
 
   fileInput.value = "";
   titleInput.value = "";
   load();
+}
+
+// Delete video
+async function deleteVideo(id, url){
+  if(!confirm("Are you sure you want to delete this video?")) return;
+  try{
+    const fileName = url.split('/').pop();
+    const { error: storageError } = await supabaseClient.storage.from('Video').remove([fileName]);
+    if(storageError) throw storageError;
+
+    const { error: dbError } = await supabaseClient.from('videos').delete().eq('id', id);
+    if(dbError) throw dbError;
+
+    load();
+  }catch(err){
+    alert("Error deleting video: " + err.message);
+  }
 }
 
 load();
