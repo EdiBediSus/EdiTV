@@ -11,6 +11,7 @@ header h1{margin:0; font-size:24px;}
 #uploadBox{padding:12px 24px; display:flex; gap:12px; align-items:center;}
 #uploadBox input[type="text"], #uploadBox input[type="file"]{flex:1; padding:10px; border-radius:6px; border:none;}
 #uploadBox button{background:red; color:white; font-weight:bold; padding:10px 20px; border-radius:6px; border:none; cursor:pointer;}
+#statusMessage{margin:8px 24px; color:yellow; font-weight:bold;}
 #videos{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; padding:12px 24px;}
 .video{background:#181818; border-radius:10px; overflow:hidden; padding:8px;}
 .video h3{margin:0; font-size:16px;}
@@ -33,13 +34,17 @@ header h1{margin:0; font-size:24px;}
   <button onclick="upload()">Upload</button>
 </div>
 
+<div id="statusMessage"></div>
+
 <div id="videos"></div>
 
-<!-- Supabase -->
+<!-- Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- FFmpeg WASM -->
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.10/dist/ffmpeg.min.js"></script>
 
 <script>
+// Initialize Supabase
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
@@ -48,12 +53,14 @@ const supabaseClient = supabase.createClient(
 const fileInput = document.getElementById("file");
 const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
+const statusMessage = document.getElementById("statusMessage");
 
+// Helper: sanitize filename
 function sanitize(name){
   return name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_.-]/g,"");
 }
 
-// Load videos
+// Load videos from Supabase table
 async function load(){
   const {data, error} = await supabaseClient.from("videos").select("*").order("created_at",{ascending:false});
   if(error){ videosDiv.innerText = error.message; return; }
@@ -63,11 +70,16 @@ async function load(){
   });
 }
 
-// Upload with compression
+// Upload function with compression and status messages
 async function upload(){
   const file = fileInput.files[0];
   const title = titleInput.value.trim();
-  if(!file||!title) return alert("Please select a file and enter a title");
+  if(!file || !title){
+    statusMessage.innerText = "⚠️ Please select a file and enter a title";
+    return;
+  }
+
+  statusMessage.innerText = "⏳ Compressing and uploading video...";
 
   const { createFFmpeg, fetchFile } = FFmpeg;
   const ffmpeg = createFFmpeg({ log: false });
@@ -78,7 +90,15 @@ async function upload(){
 
   ffmpeg.FS('writeFile', originalName, await fetchFile(file));
 
-  await ffmpeg.run('-i', originalName, '-vf', 'scale=1280:-2', '-c:v', 'libx264', '-preset', 'fast', '-crf', '28', '-c:a', 'aac', compressedName);
+  await ffmpeg.run(
+    "-i", originalName,
+    "-vf", "scale=1280:-2",
+    "-c:v", "libx264",
+    "-preset", "fast",
+    "-crf", "28",
+    "-c:a", "aac",
+    compressedName
+  );
 
   const data = ffmpeg.FS('readFile', compressedName);
   const compressedBlob = new Blob([data.buffer], { type: 'video/mp4' });
@@ -86,19 +106,27 @@ async function upload(){
 
   // Upload to Supabase Storage
   const { error: uploadError } = await supabaseClient.storage.from("Video").upload(finalName, compressedBlob, { upsert:false });
-  if(uploadError) return alert("Upload error: " + uploadError.message);
+  if(uploadError){
+    statusMessage.innerText = "❌ Upload error: " + uploadError.message;
+    return;
+  }
 
   const { data: urlData } = supabaseClient.storage.from("Video").getPublicUrl(finalName);
 
-  // Insert into DB
+  // Insert into DB table
   const { error: insertError } = await supabaseClient.from("videos").insert({ title, url: urlData.publicUrl });
-  if(insertError) return alert("DB error: " + insertError.message);
+  if(insertError){
+    statusMessage.innerText = "❌ Database error: " + insertError.message;
+    return;
+  }
 
+  statusMessage.innerText = "✅ Upload successful!";
   fileInput.value = "";
   titleInput.value = "";
   load();
 }
 
+// Load videos on page load
 load();
 </script>
 
