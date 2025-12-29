@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MiniTube</title>
+
 <style>
 body {
   margin: 0;
@@ -45,6 +46,7 @@ video {
 }
 </style>
 </head>
+
 <body>
 
 <header>MiniTube</header>
@@ -55,83 +57,86 @@ video {
   <button onclick="upload()">Upload</button>
 </div>
 
+<!-- MUST be lowercase -->
 <div id="videos"></div>
 
-<!-- Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// Replace these with your Supabase info
 const supabaseClient = supabase.createClient(
-  "https://fdwzqfufmnuuerbocwys.supabase.co", 
-  "sb_publishable_d3Tspw2Qu0frILfjShe_BA_SgKS5frW" 
+  "https://fdwzqfufmnuuerbocwys.supabase.co",
+  "sb_publishable_d3Tspw2Qu0frILfjShe_BA_SgKS5frW"
 );
 
 const fileInput = document.getElementById("file");
 const titleInput = document.getElementById("title");
-const videos = document.getElementById("Video");
+const videosDiv = document.getElementById("videos");
 
-// Upload function
+// sanitize filename
+function sanitize(name) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_.-]/g, "");
+}
+
 async function upload() {
   const file = fileInput.files[0];
-  const title = titleInput.value;
+  const title = titleInput.value.trim();
 
   if (!file || !title) {
-    return alert("Please select a file and enter a title");
+    alert("Please select a file and enter a title");
+    return;
   }
 
-  const fileName = Date.now() + "_" + file.name;
+  const fileName = Date.now() + "_" + sanitize(file.name);
 
-  // Upload to your bucket "Video"
+  // upload to STORAGE bucket
   const { error: uploadError } = await supabaseClient.storage
-    .from("Video")      // <-- MATCH YOUR BUCKET NAME EXACTLY
+    .from("Video")
     .upload(fileName, file);
 
   if (uploadError) {
-    alert("Upload error: " + uploadError.message);
+    alert(uploadError.message);
     return;
   }
 
-  // Get public URL
-  const { data: publicData, error: urlError } = supabaseClient.storage
-    .from("Video")      // <-- MATCH YOUR BUCKET NAME EXACTLY
+  const { data } = supabaseClient.storage
+    .from("Video")
     .getPublicUrl(fileName);
 
-  if (urlError) {
-    alert("URL error: " + urlError.message);
-    return;
-  }
-
-  // Insert into "videos" table
-  const { error: insertError } = await supabaseClient.from("Video").insert({
-    title: title,
-    url: publicData.publicUrl
-  });
+  // insert into DATABASE table
+  const { error: insertError } = await supabaseClient
+    .from("videos")
+    .insert({
+      title: title,
+      url: data.publicUrl
+    });
 
   if (insertError) {
-    alert("Database error: " + insertError.message);
+    alert(insertError.message);
     return;
   }
 
-  alert("Upload successful!");
   titleInput.value = "";
   fileInput.value = "";
   load();
 }
 
-// Load videos from table
 async function load() {
-  const { data, error } = await supabaseClient.from("Video")
+  const { data, error } = await supabaseClient
+    .from("videos")
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error) {
-    videos.innerHTML = "Error loading videos: " + error.message;
+    videosDiv.innerText = error.message;
     return;
   }
 
-  videos.innerHTML = "";
+  videosDiv.innerHTML = "";
   data.forEach(v => {
-    videos.innerHTML += `
+    videosDiv.innerHTML += `
       <div class="video">
         <h3>${v.title}</h3>
         <video controls src="${v.url}"></video>
@@ -140,10 +145,8 @@ async function load() {
   });
 }
 
-// Load videos on page load
 load();
 </script>
 
 </body>
 </html>
-
