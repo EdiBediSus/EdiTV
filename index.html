@@ -50,7 +50,7 @@ const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
 const statusMessage = document.getElementById("statusMessage");
 
-// Sanitize filenames to ASCII only to prevent Headers error
+// Sanitize filenames to ASCII only to prevent headers errors
 function sanitize(name){
   return name
     .normalize("NFD")
@@ -59,7 +59,7 @@ function sanitize(name){
     .replace(/[^a-zA-Z0-9_.-]/g,""); // remove other chars
 }
 
-// Load videos from Supabase table
+// Load videos from Supabase
 async function load(){
   const {data, error} = await supabaseClient.from("videos").select("*").order("created_at",{ascending:false});
   if(error){ videosDiv.innerText = error.message; return; }
@@ -75,7 +75,7 @@ async function load(){
   });
 }
 
-// Play video when clicking thumbnail
+// Play video when thumbnail is clicked
 function playVideo(img, videoUrl){
   const container = img.parentElement;
   const video = container.querySelector('video');
@@ -84,7 +84,7 @@ function playVideo(img, videoUrl){
   video.play();
 }
 
-// Upload video + auto-generate thumbnail
+// Upload video + auto-generated thumbnail
 async function upload(){
   const file = fileInput.files[0];
   const title = titleInput.value.trim();
@@ -98,21 +98,23 @@ async function upload(){
   const fileName = Date.now() + "_" + sanitize(file.name);
   const thumbName = "thumb_" + fileName;
 
-  // Generate thumbnail from first frame
+  // Generate thumbnail in browser
   const videoEl = document.createElement('video');
   videoEl.src = URL.createObjectURL(file);
   await new Promise(resolve => videoEl.onloadeddata = resolve);
+
   const canvas = document.createElement('canvas');
   canvas.width = 320;
   canvas.height = videoEl.videoHeight / (videoEl.videoWidth / 320);
   canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+
   const blobThumb = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.7));
 
   // Upload video
   const { error: uploadError } = await supabaseClient.storage.from("Video").upload(fileName, file, { upsert:false });
   if(uploadError){ statusMessage.innerText = "❌ Upload error: "+uploadError.message; return; }
 
-  // Upload thumbnail
+  // Upload thumbnail as a real image file
   const { error: thumbError } = await supabaseClient.storage.from("Video").upload(thumbName, blobThumb, { upsert:false });
   if(thumbError){ statusMessage.innerText = "❌ Thumbnail upload error: "+thumbError.message; return; }
 
@@ -139,4 +141,3 @@ load();
 </script>
 </body>
 </html>
-
