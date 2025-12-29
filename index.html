@@ -13,10 +13,9 @@ header h1{margin:0; font-size:24px;}
 #uploadBox button{background:red; color:white; font-weight:bold; padding:10px 20px; border-radius:6px; border:none; cursor:pointer;}
 #statusMessage{margin:8px 24px; color:yellow; font-weight:bold;}
 #videos{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; padding:12px 24px;}
-.video{background:#181818; border-radius:10px; overflow:hidden; padding:8px; text-align:center;}
-.video h3{margin:0 0 8px 0; font-size:16px;}
-.video img{width:100%; border-radius:8px; cursor:pointer;}
-.video video{width:100%; display:none; border-radius:8px;}
+.video{background:#181818; border-radius:10px; overflow:hidden; padding:8px;}
+.video h3{margin:0; font-size:16px;}
+.video video{width:100%; display:block; border-radius:0;}
 @media (max-width:768px){
   header{flex-direction:column; align-items:flex-start;}
   #uploadBox{flex-direction:column; gap:8px; padding:12px;}
@@ -36,10 +35,14 @@ header h1{margin:0; font-size:24px;}
 </div>
 
 <div id="statusMessage"></div>
+
 <div id="videos"></div>
 
+<!-- Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
+// Initialize Supabase
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
@@ -50,41 +53,22 @@ const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
 const statusMessage = document.getElementById("statusMessage");
 
-// Sanitize filenames to ASCII only to prevent headers errors
+// Helper: sanitize filename
 function sanitize(name){
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g,"")  // remove accents
-    .replace(/\s+/g,"_")             // replace spaces
-    .replace(/[^a-zA-Z0-9_.-]/g,""); // remove other chars
+  return name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_.-]/g,"");
 }
 
-// Load videos from Supabase
+// Load videos from Supabase table
 async function load(){
   const {data, error} = await supabaseClient.from("videos").select("*").order("created_at",{ascending:false});
   if(error){ videosDiv.innerText = error.message; return; }
   videosDiv.innerHTML = "";
   data.forEach(v=>{
-    videosDiv.innerHTML += `
-      <div class="video">
-        <h3>${v.title}</h3>
-        <img src="${v.thumbnail_url}" onclick="playVideo(this, '${v.url}')">
-        <video controls src="${v.url}"></video>
-      </div>
-    `;
+    videosDiv.innerHTML += `<div class="video"><h3>${v.title}</h3><video controls src="${v.url}"></video></div>`;
   });
 }
 
-// Play video when thumbnail is clicked
-function playVideo(img, videoUrl){
-  const container = img.parentElement;
-  const video = container.querySelector('video');
-  img.style.display = 'none';
-  video.style.display = 'block';
-  video.play();
-}
-
-// Upload video + auto-generated thumbnail
+// Upload function (no compression)
 async function upload(){
   const file = fileInput.files[0];
   const title = titleInput.value.trim();
@@ -93,42 +77,30 @@ async function upload(){
     return;
   }
 
-  statusMessage.innerText = "⏳ Generating thumbnail and uploading...";
+  statusMessage.innerText = "⏳ Uploading video...";
 
   const fileName = Date.now() + "_" + sanitize(file.name);
-  const thumbName = "thumb_" + fileName;
 
-  // Generate thumbnail in browser
-  const videoEl = document.createElement('video');
-  videoEl.src = URL.createObjectURL(file);
-  await new Promise(resolve => videoEl.onloadeddata = resolve);
+  // Upload to Supabase Storage
+  const { error: uploadError } = await supabaseClient.storage
+    .from("Video")
+    .upload(fileName, file, { upsert:false });
 
-  const canvas = document.createElement('canvas');
-  canvas.width = 320;
-  canvas.height = videoEl.videoHeight / (videoEl.videoWidth / 320);
-  canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+  if(uploadError){
+    statusMessage.innerText = "❌ Upload error: " + uploadError.message;
+    return;
+  }
 
-  const blobThumb = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.7));
+  const { data: urlData } = supabaseClient.storage.from("Video").getPublicUrl(fileName);
 
-  // Upload video
-  const { error: uploadError } = await supabaseClient.storage.from("Video").upload(fileName, file, { upsert:false });
-  if(uploadError){ statusMessage.innerText = "❌ Upload error: "+uploadError.message; return; }
+  // Insert into DB table
+  const { error: insertError } = await supabaseClient.from("videos")
+    .insert({ title, url: urlData.publicUrl });
 
-  // Upload thumbnail as a real image file
-  const { error: thumbError } = await supabaseClient.storage.from("Video").upload(thumbName, blobThumb, { upsert:false });
-  if(thumbError){ statusMessage.innerText = "❌ Thumbnail upload error: "+thumbError.message; return; }
-
-  // Get public URLs
-  const { data: videoData } = supabaseClient.storage.from("Video").getPublicUrl(fileName);
-  const { data: thumbData } = supabaseClient.storage.from("Video").getPublicUrl(thumbName);
-
-  // Insert into DB
-  const { error: insertError } = await supabaseClient.from("videos").insert({
-    title,
-    url: videoData.publicUrl,
-    thumbnail_url: thumbData.publicUrl
-  });
-  if(insertError){ statusMessage.innerText = "❌ DB error: "+insertError.message; return; }
+  if(insertError){
+    statusMessage.innerText = "❌ Database error: " + insertError.message;
+    return;
+  }
 
   statusMessage.innerText = "✅ Upload successful!";
   fileInput.value = "";
@@ -139,5 +111,6 @@ async function upload(){
 // Load videos on page load
 load();
 </script>
+
 </body>
 </html>
