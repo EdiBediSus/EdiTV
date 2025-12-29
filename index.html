@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>EdiTV</title>
 
 <style>
@@ -46,7 +46,7 @@ button {
   cursor: pointer;
 }
 
-/* GRID */
+/* VIDEOS GRID (PC like YouTube) */
 #videos {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -54,26 +54,32 @@ button {
   padding: 16px;
 }
 
-/* CARD */
+/* VIDEO CARD */
 .video {
   background: #181818;
   border-radius: 12px;
   overflow: hidden;
 }
 
-/* THUMBNAIL */
-.thumb {
+/* VIDEO FRAME */
+.video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
+  background: black;
+}
+
+.video-player video {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
-  cursor: pointer;
 }
 
 /* TITLE */
 .video h3 {
   margin: 10px;
   font-size: 16px;
+  line-height: 1.3;
 }
 
 /* MOBILE */
@@ -81,6 +87,9 @@ button {
   #videos {
     grid-template-columns: 1fr;
     padding: 8px;
+  }
+  header {
+    font-size: 18px;
   }
 }
 </style>
@@ -91,8 +100,8 @@ button {
 <header>EdiTV</header>
 
 <div id="uploadBox">
-  <input id="title" placeholder="Video title">
-  <input id="file" type="file" accept="video/*">
+  <input id="title" placeholder="Video title" />
+  <input id="file" type="file" accept="video/*" />
   <button onclick="upload()">Upload</button>
   <p id="status"></p>
 </div>
@@ -102,122 +111,111 @@ button {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+/* SUPABASE */
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
+  "YeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
 );
 
+const fileInput = document.getElementById("file");
+const titleInput = document.getElementById("title");
+const videosDiv = document.getElementById("videos");
 const statusText = document.getElementById("status");
 
 /* HELPERS */
 function sanitize(name) {
-  return name.normalize("NFD")
+  return name
+    .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9_.-]/g, "_");
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_.-]/g, "");
 }
 
 function isMobile() {
-  return /Android|iPhone|iPad/i.test(navigator.userAgent);
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
-/* GENERATE THUMBNAIL */
-function generateThumbnail(file) {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    video.src = URL.createObjectURL(file);
-    video.muted = true;
-    video.playsInline = true;
-
-    video.onloadedmetadata = () => {
-      video.currentTime = 0.5; // take frame at 0.5s
-    };
-
-    video.onseeked = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 320;
-      canvas.height = video.videoHeight * (320 / video.videoWidth);
-      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(blob => {
-        if (blob) resolve(blob);
-        else reject("Thumbnail generation failed");
-      }, "image/jpeg", 0.7);
-    };
-
-    video.onerror = (e) => reject("Video load error: " + e);
-  });
+function playFullscreen(video) {
+  if (isMobile()) {
+    if (video.requestFullscreen) {
+      video.requestFullscreen();
+    } else if (video.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();
+    }
+  }
+  video.play();
 }
 
 /* UPLOAD */
 async function upload() {
-  const file = document.getElementById("file").files[0];
-  const title = document.getElementById("title").value.trim();
-  if (!file || !title) return alert("Missing file or title");
+  const file = fileInput.files[0];
+  const title = titleInput.value.trim();
 
-  statusText.innerText = "Uploading...";
-
-  const safeName = Date.now() + "_" + sanitize(file.name);
-  const thumbName = "thumb_" + Date.now() + ".jpg";
-
-  // Upload video
-  const { error: videoError } = await supabaseClient.storage.from("Video").upload(safeName, file);
-  if (videoError) return alert("Video upload failed: " + videoError.message);
-
-  // Generate thumbnail
-  let thumbBlob;
-  try {
-    thumbBlob = await generateThumbnail(file);
-  } catch (err) {
-    console.error(err);
-    statusText.innerText = "Thumbnail generation failed";
+  if (!file || !title) {
+    alert("Select a file and title");
     return;
   }
 
-  const { error: thumbError } = await supabaseClient.storage.from("Video").upload(thumbName, thumbBlob);
-  if (thumbError) return alert("Thumbnail upload failed: " + thumbError.message);
+  statusText.innerText = "Uploading...";
 
-  // Get public URLs
-  const { data: videoUrlData } = supabaseClient.storage.from("Video").getPublicUrl(safeName);
-  const { data: thumbUrlData } = supabaseClient.storage.from("Video").getPublicUrl(thumbName);
+  const fileName = Date.now() + "_" + sanitize(file.name);
 
-  const videoUrl = videoUrlData.publicUrl;
-  const thumbUrl = thumbUrlData.publicUrl;
+  const { error: uploadError } = await supabaseClient.storage
+    .from("Video")
+    .upload(fileName, file);
 
-  // Save to DB
-  const { error: dbError } = await supabaseClient.from("videos").insert({
-    title,
-    url: videoUrl,
-    thumbnail_url: thumbUrl
-  });
+  if (uploadError) {
+    statusText.innerText = "Upload error: " + uploadError.message;
+    return;
+  }
 
-  if (dbError) return alert("DB insert failed: " + dbError.message);
+  const { data } = supabaseClient.storage
+    .from("Video")
+    .getPublicUrl(fileName);
 
-  statusText.innerText = "✅ Uploaded!";
+  const { error: dbError } = await supabaseClient
+    .from("videos")
+    .insert({ title, url: data.publicUrl });
+
+  if (dbError) {
+    statusText.innerText = "Database error: " + dbError.message;
+    return;
+  }
+
+  statusText.innerText = "✅ Upload successful!";
+  titleInput.value = "";
+  fileInput.value = "";
+
   loadVideos();
-}
-
-/* PLAY VIDEO */
-function playVideo(url) {
-  const v = document.createElement("video");
-  v.src = url;
-  v.controls = true;
-  document.body.appendChild(v);
-  v.play();
-
-  if (isMobile() && v.requestFullscreen) v.requestFullscreen();
 }
 
 /* LOAD VIDEOS */
 async function loadVideos() {
-  const { data } = await supabaseClient.from("videos").select("*").order("created_at", { ascending: false });
-  const videosDiv = document.getElementById("videos");
-  videosDiv.innerHTML = "";
+  const { data, error } = await supabaseClient
+    .from("videos")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-  if (!data) return;
+  if (error) {
+    videosDiv.innerHTML = "Error loading videos";
+    return;
+  }
+
+  videosDiv.innerHTML = "";
 
   data.forEach(v => {
     videosDiv.innerHTML += `
       <div class="video">
-        <img class="thumb" src="${v.thumbnail_url}" onclick="playVideo('${v.url}')">
+        <div class="video-player">
+          <video
+            preload="metadata"
+            muted
+            playsinline
+            controls
+            src="${v.url}"
+            onclick="playFullscreen(this)">
+          </video>
+        </div>
         <h3>${v.title}</h3>
       </div>
     `;
