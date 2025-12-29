@@ -40,8 +40,6 @@ header h1{margin:0; font-size:24px;}
 
 <!-- Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- FFmpeg WASM -->
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.10/dist/ffmpeg.min.js"></script>
 
 <script>
 // Initialize Supabase
@@ -70,7 +68,7 @@ async function load(){
   });
 }
 
-// Upload function with compression and status messages
+// Upload function (no compression)
 async function upload(){
   const file = fileInput.files[0];
   const title = titleInput.value.trim();
@@ -79,42 +77,26 @@ async function upload(){
     return;
   }
 
-  statusMessage.innerText = "⏳ Compressing and uploading video...";
+  statusMessage.innerText = "⏳ Uploading video...";
 
-  const { createFFmpeg, fetchFile } = FFmpeg;
-  const ffmpeg = createFFmpeg({ log: false });
-  if(!ffmpeg.isLoaded()) await ffmpeg.load();
-
-  const originalName = sanitize(file.name);
-  const compressedName = "compressed_" + originalName;
-
-  ffmpeg.FS('writeFile', originalName, await fetchFile(file));
-
-  await ffmpeg.run(
-    "-i", originalName,
-    "-vf", "scale=1280:-2",
-    "-c:v", "libx264",
-    "-preset", "fast",
-    "-crf", "28",
-    "-c:a", "aac",
-    compressedName
-  );
-
-  const data = ffmpeg.FS('readFile', compressedName);
-  const compressedBlob = new Blob([data.buffer], { type: 'video/mp4' });
-  const finalName = Date.now()+"_"+compressedName;
+  const fileName = Date.now() + "_" + sanitize(file.name);
 
   // Upload to Supabase Storage
-  const { error: uploadError } = await supabaseClient.storage.from("Video").upload(finalName, compressedBlob, { upsert:false });
+  const { error: uploadError } = await supabaseClient.storage
+    .from("Video")
+    .upload(fileName, file, { upsert:false });
+
   if(uploadError){
     statusMessage.innerText = "❌ Upload error: " + uploadError.message;
     return;
   }
 
-  const { data: urlData } = supabaseClient.storage.from("Video").getPublicUrl(finalName);
+  const { data: urlData } = supabaseClient.storage.from("Video").getPublicUrl(fileName);
 
   // Insert into DB table
-  const { error: insertError } = await supabaseClient.from("videos").insert({ title, url: urlData.publicUrl });
+  const { error: insertError } = await supabaseClient.from("videos")
+    .insert({ title, url: urlData.publicUrl });
+
   if(insertError){
     statusMessage.innerText = "❌ Database error: " + insertError.message;
     return;
