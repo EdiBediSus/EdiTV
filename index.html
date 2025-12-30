@@ -21,7 +21,7 @@ body {
 header {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 10;
   background: #0f0f0f;
   border-bottom: 1px solid #222;
   padding: 14px;
@@ -34,38 +34,6 @@ header {
   font-weight: 700;
 }
 .logo span { color: #ff0000; }
-
-/* UPLOAD */
-#uploadBox {
-  max-width: 720px;
-  margin: 16px auto;
-  padding: 18px;
-  background: #181818;
-  border-radius: 14px;
-}
-
-#uploadBox input, #uploadBox button {
-  width: 100%;
-  padding: 14px;
-  margin-top: 10px;
-  border-radius: 10px;
-  border: none;
-  font-size: 15px;
-}
-
-#uploadBox input {
-  background: #0f0f0f;
-  color: white;
-  border: 1px solid #333;
-}
-
-#uploadBox button {
-  background: #ff0000;
-  color: white;
-  font-weight: 600;
-}
-
-#status { margin-top: 10px; font-size: 14px; }
 
 /* GRID */
 #videos {
@@ -86,7 +54,7 @@ header {
 .video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: #111;
+  background: #000;
 }
 
 /* THUMBNAIL */
@@ -121,11 +89,6 @@ video {
   color: #aaa;
   margin-top: 4px;
 }
-
-@media (max-width: 600px) {
-  #videos { grid-template-columns: 1fr; padding: 12px; }
-  #uploadBox { margin: 12px; }
-}
 </style>
 </head>
 
@@ -134,13 +97,6 @@ video {
 <header>
   <div class="logo">Edi<span>TV</span></div>
 </header>
-
-<div id="uploadBox">
-  <input id="title" placeholder="Video title" />
-  <input id="file" type="file" accept="video/*" />
-  <button onclick="upload()">Upload</button>
-  <div id="status"></div>
-</div>
 
 <div id="videos"></div>
 
@@ -156,22 +112,39 @@ const videosDiv = document.getElementById("videos");
 
 /* TIME AGO */
 function timeAgo(date) {
-  const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-  const units = [
-    [31536000, "year"],
-    [2592000, "month"],
-    [86400, "day"],
-    [3600, "hour"],
-    [60, "minute"]
-  ];
-  for (const [s, l] of units) {
-    const v = Math.floor(seconds / s);
-    if (v >= 1) return `${v} ${l}${v > 1 ? "s" : ""} ago`;
+  const s = Math.floor((Date.now() - new Date(date)) / 1000);
+  const m = [[31536000,"year"],[2592000,"month"],[86400,"day"],[3600,"hour"],[60,"minute"]];
+  for (const [t,l] of m) {
+    const v = Math.floor(s/t);
+    if (v >= 1) return `${v} ${l}${v>1?"s":""} ago`;
   }
   return "Just now";
 }
 
-/* THUMBNAIL → VIDEO (ONE TIME ONLY) */
+/* EXTRACT THUMBNAIL */
+function extractThumbnail(videoUrl, imgEl) {
+  const video = document.createElement("video");
+  video.src = videoUrl;
+  video.crossOrigin = "anonymous";
+  video.preload = "metadata";
+  video.muted = true;
+
+  video.onloadedmetadata = () => {
+    video.currentTime = Math.min(0.5, video.duration / 2);
+  };
+
+  video.onseeked = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+    imgEl.src = canvas.toDataURL("image/jpeg", 0.7);
+    video.remove();
+  };
+}
+
+/* PLAY VIDEO */
 function playVideo(container, url) {
   container.innerHTML = `
     <video controls autoplay playsinline>
@@ -190,14 +163,12 @@ async function loadVideos() {
   videosDiv.innerHTML = "";
 
   data.forEach(v => {
+    const id = "thumb_" + Math.random().toString(36).slice(2);
+
     videosDiv.innerHTML += `
       <div class="video">
-        <div class="video-player">
-          <img
-            class="thumbnail"
-            src="https://dummyimage.com/1280x720/1a1a1a/ffffff&text=Video"
-            onclick="playVideo(this.parentElement, '${v.url}')"
-          >
+        <div class="video-player" id="${id}_container">
+          <img id="${id}" class="thumbnail">
         </div>
         <div class="video-info">
           <p class="video-title">${v.title}</p>
@@ -205,6 +176,10 @@ async function loadVideos() {
         </div>
       </div>
     `;
+
+    const img = document.getElementById(id);
+    extractThumbnail(v.url, img);
+    img.onclick = () => playVideo(document.getElementById(id + "_container"), v.url);
   });
 }
 
