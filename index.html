@@ -82,16 +82,23 @@ header {
   overflow: hidden;
 }
 
-/* THUMBNAIL / PLAYER */
+/* PLAYER */
 .video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: #000;
+  background: #111;
+}
+
+/* THUMBNAIL */
+.thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   cursor: pointer;
 }
 
-.video-player img,
-.video-player video {
+/* VIDEO */
+video {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -146,7 +153,6 @@ const supabaseClient = supabase.createClient(
 );
 
 const videosDiv = document.getElementById("videos");
-const statusText = document.getElementById("status");
 
 /* TIME AGO */
 function timeAgo(date) {
@@ -165,11 +171,11 @@ function timeAgo(date) {
   return "Just now";
 }
 
-/* CLICK THUMBNAIL → LOAD VIDEO */
+/* THUMBNAIL → VIDEO (ONE TIME ONLY) */
 function playVideo(container, url) {
   container.innerHTML = `
     <video controls autoplay playsinline>
-      <source src="${url}" type="video/mp4">
+      <source src="${url}">
     </video>
   `;
 }
@@ -186,8 +192,12 @@ async function loadVideos() {
   data.forEach(v => {
     videosDiv.innerHTML += `
       <div class="video">
-        <div class="video-player" onclick="playVideo(this, '${v.url}')">
-          <img src="https://via.placeholder.com/1280x720/000000/FFFFFF?text=Video+Preview">
+        <div class="video-player">
+          <img
+            class="thumbnail"
+            src="https://dummyimage.com/1280x720/1a1a1a/ffffff&text=Video"
+            onclick="playVideo(this.parentElement, '${v.url}')"
+          >
         </div>
         <div class="video-info">
           <p class="video-title">${v.title}</p>
