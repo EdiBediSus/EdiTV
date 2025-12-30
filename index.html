@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>EdiTV</title>
 
-<!-- GOOGLE FONT -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- FONT -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
 * {
@@ -16,54 +16,70 @@
 body {
   margin: 0;
   font-family: 'Inter', sans-serif;
-  background: linear-gradient(180deg, #0b0b0b, #121212);
-  color: #fff;
+  background: #0f0f0f;
+  color: #ffffff;
 }
 
 /* HEADER */
 header {
   position: sticky;
   top: 0;
-  z-index: 10;
-  background: rgba(18,18,18,0.95);
-  backdrop-filter: blur(8px);
-  padding: 16px;
-  text-align: center;
+  z-index: 20;
+  background: #0f0f0f;
+  border-bottom: 1px solid #222;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
   font-size: 22px;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid #222;
+  color: #fff;
 }
 
-/* UPLOAD BOX */
+.logo span {
+  color: #ff0000;
+}
+
+/* UPLOAD CARD */
 #uploadBox {
-  max-width: 600px;
-  margin: 16px auto;
-  padding: 16px;
+  max-width: 720px;
+  margin: 18px auto;
+  padding: 18px;
   background: #181818;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
 }
 
-#uploadBox input,
-#uploadBox button {
-  width: 100%;
-  padding: 14px;
-  margin-top: 10px;
-  border-radius: 10px;
-  border: none;
-  font-size: 15px;
+#uploadBox h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
 }
 
 #uploadBox input {
-  background: #222;
+  width: 100%;
+  padding: 14px;
+  margin-top: 10px;
+  background: #0f0f0f;
   color: white;
+  border: 1px solid #333;
+  border-radius: 10px;
+  font-size: 15px;
 }
 
 #uploadBox button {
-  background: linear-gradient(135deg, #ff0000, #cc0000);
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  background: #ff0000;
   color: white;
   font-weight: 600;
+  font-size: 15px;
   cursor: pointer;
 }
 
@@ -77,28 +93,28 @@ header {
   opacity: 0.85;
 }
 
-/* VIDEOS GRID */
+/* VIDEO GRID */
 #videos {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 18px;
-  padding: 16px;
+  padding: 18px;
 }
 
 /* VIDEO CARD */
 .video {
   background: #181818;
-  border-radius: 18px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .video:hover {
   transform: translateY(-4px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
 }
 
-/* VIDEO PLAYER */
+/* THUMBNAIL AREA */
 .video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -111,24 +127,23 @@ header {
   object-fit: cover;
 }
 
-/* TITLE */
-.video h3 {
+/* VIDEO INFO */
+.video-info {
   padding: 12px;
-  margin: 0;
+}
+
+.video-title {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
+  margin: 0;
 }
 
-/* MOBILE OPTIMIZATION */
+/* MOBILE */
 @media (max-width: 600px) {
   #videos {
     grid-template-columns: 1fr;
     padding: 12px;
-  }
-
-  header {
-    font-size: 20px;
   }
 
   #uploadBox {
@@ -140,13 +155,16 @@ header {
 
 <body>
 
-<header>EdiTV</header>
+<header>
+  <div class="logo">Edi<span>TV</span></div>
+</header>
 
 <div id="uploadBox">
+  <h2>Upload a video</h2>
   <input id="title" placeholder="Video title" />
   <input id="file" type="file" accept="video/*" />
-  <button onclick="upload()">Upload Video</button>
-  <p id="status"></p>
+  <button onclick="upload()">Upload</button>
+  <div id="status"></div>
 </div>
 
 <div id="videos"></div>
@@ -178,7 +196,7 @@ async function upload() {
   const title = titleInput.value.trim();
 
   if (!file || !title) {
-    alert("Please select a video and enter a title");
+    alert("Add a title and select a video");
     return;
   }
 
@@ -204,7 +222,7 @@ async function upload() {
     url: data.publicUrl
   });
 
-  statusText.innerText = "✅ Uploaded!";
+  statusText.innerText = "✅ Upload complete";
   titleInput.value = "";
   fileInput.value = "";
 
@@ -225,7 +243,9 @@ async function loadVideos() {
         <div class="video-player">
           <video controls playsinline src="${v.url}"></video>
         </div>
-        <h3>${v.title}</h3>
+        <div class="video-info">
+          <p class="video-title">${v.title}</p>
+        </div>
       </div>
     `;
   });
