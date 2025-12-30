@@ -1,81 +1,302 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>EdiTV</title>
+
 <style>
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
+  font-family: Arial, sans-serif;
   background: #0f0f0f;
   color: white;
-  font-family: system-ui;
 }
+
+/* HEADER */
 header {
   padding: 14px;
   text-align: center;
-  background: #181818;
   font-size: 22px;
   font-weight: bold;
+  background: #181818;
 }
+
+/* UPLOAD */
+#uploadBox {
+  padding: 12px;
+  max-width: 600px;
+  margin: auto;
+}
+
+input, button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  border-radius: 6px;
+  border: none;
+}
+
+button {
+  background: red;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* STATUS */
+#status {
+  margin-top: 8px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* GRID */
 #videos {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
   padding: 16px;
 }
+
+/* CARD */
 .video {
   background: #181818;
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
 }
-.thumb {
+
+/* THUMBNAIL */
+.thumbnail {
   width: 100%;
-  aspect-ratio: 16/9;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  position: relative;
+}
+
+.thumbnail img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
+
+.play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 52px;
+  opacity: 0.85;
+}
+
+/* TITLE */
 .video h3 {
   margin: 10px;
   font-size: 16px;
+  line-height: 1.3;
 }
-@media(max-width:700px){
-  #videos { grid-template-columns: 1fr; }
+
+/* PLAYER PAGE */
+#playerPage {
+  position: fixed;
+  inset: 0;
+  background: black;
+  display: none;
+  flex-direction: column;
+}
+
+#playerPage video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#closeBtn {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  font-size: 16px;
+  border-radius: 6px;
+  z-index: 10;
+}
+
+/* MOBILE */
+@media (max-width: 700px) {
+  #videos {
+    grid-template-columns: 1fr;
+    padding: 8px;
+  }
+
+  header {
+    font-size: 18px;
+  }
 }
 </style>
 </head>
+
 <body>
 
 <header>EdiTV</header>
+
+<div id="uploadBox">
+  <input id="title" placeholder="Video title" />
+  <input id="file" type="file" accept="video/*" />
+  <button onclick="upload()">Upload</button>
+  <div id="status"></div>
+</div>
+
 <div id="videos"></div>
 
+<!-- FULLSCREEN PLAYER -->
+<div id="playerPage">
+  <button id="closeBtn" onclick="closePlayer()">✕</button>
+  <video id="player" controls playsinline></video>
+</div>
+
+<!-- SUPABASE -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
 );
 
+const fileInput = document.getElementById("file");
+const titleInput = document.getElementById("title");
+const videosDiv = document.getElementById("videos");
+const statusText = document.getElementById("status");
+const playerPage = document.getElementById("playerPage");
+const player = document.getElementById("player");
+
+/* SAFE FILE NAME */
+function sanitize(name) {
+  return name.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_.-]/g, "_");
+}
+
+/* UPLOAD */
+async function upload() {
+  const file = fileInput.files[0];
+  const title = titleInput.value.trim();
+
+  if (!file || !title) {
+    alert("Select a file and title");
+    return;
+  }
+
+  statusText.innerText = "Uploading...";
+
+  const base = Date.now() + "_" + sanitize(file.name);
+  const videoName = base;
+  const thumbName = "thumb_" + base + ".jpg";
+
+  /* VIDEO UPLOAD */
+  const { error: vErr } = await supabaseClient.storage
+    .from("Video")
+    .upload(videoName, file);
+
+  if (vErr) {
+    statusText.innerText = vErr.message;
+    return;
+  }
+
+  const videoUrl = supabaseClient.storage
+    .from("Video")
+    .getPublicUrl(videoName).data.publicUrl;
+
+  /* THUMBNAIL */
+  const thumbBlob = await new Promise(resolve => {
+    const v = document.createElement("video");
+    v.src = URL.createObjectURL(file);
+    v.muted = true;
+    v.onloadeddata = () => {
+      const c = document.createElement("canvas");
+      c.width = 320;
+      c.height = v.videoHeight * (320 / v.videoWidth);
+      c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+      c.toBlob(b => resolve(b), "image/jpeg", 0.7);
+    };
+  });
+
+  await supabaseClient.storage.from("Video").upload(thumbName, thumbBlob);
+
+  const thumbUrl = supabaseClient.storage
+    .from("Video")
+    .getPublicUrl(thumbName).data.publicUrl;
+
+  /* DB INSERT */
+  const { error } = await supabaseClient.from("videos").insert({
+    title,
+    url: videoUrl,
+    thumbnail_url: thumbUrl
+  });
+
+  if (error) {
+    statusText.innerText = error.message;
+    return;
+  }
+
+  statusText.innerText = "✅ Uploaded!";
+  titleInput.value = "";
+  fileInput.value = "";
+  loadVideos();
+}
+
+/* LOAD */
 async function loadVideos() {
-  const { data } = await supabaseClient
+  const { data, error } = await supabaseClient
     .from("videos")
     .select("*")
-    .order("created_at", { ascending:false });
+    .order("created_at", { ascending: false });
 
-  const el = document.getElementById("videos");
-  el.innerHTML = "";
+  if (error) {
+    videosDiv.innerText = error.message;
+    return;
+  }
+
+  videosDiv.innerHTML = "";
 
   data.forEach(v => {
-    el.innerHTML += `
-      <div class="video" onclick="location.href='watch.html?id=${v.id}'">
-        <img class="thumb" src="${v.thumbnail_url}">
+    videosDiv.innerHTML += `
+      <div class="video" onclick="openPlayer('${v.url}')">
+        <div class="thumbnail">
+          <img src="${v.thumbnail_url}" />
+          <div class="play">▶</div>
+        </div>
         <h3>${v.title}</h3>
       </div>
     `;
   });
 }
 
+/* PLAYER */
+function openPlayer(url) {
+  player.src = url;
+  playerPage.style.display = "flex";
+  player.play();
+}
+
+function closePlayer() {
+  player.pause();
+  player.src = "";
+  playerPage.style.display = "none";
+}
+
 loadVideos();
 </script>
+
 </body>
 </html>
