@@ -5,23 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>EdiTV</title>
 
+<!-- FONT -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
   font-family: 'Inter', sans-serif;
   background: #0f0f0f;
-  color: white;
+  color: #ffffff;
 }
 
 /* HEADER */
 header {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   background: #0f0f0f;
   border-bottom: 1px solid #222;
   padding: 14px;
@@ -32,10 +35,64 @@ header {
 .logo {
   font-size: 24px;
   font-weight: 700;
+  letter-spacing: 0.5px;
 }
-.logo span { color: #ff0000; }
 
-/* GRID */
+.logo span {
+  color: #ff0000;
+}
+
+/* UPLOAD CARD */
+#uploadBox {
+  max-width: 720px;
+  margin: 18px auto;
+  padding: 18px;
+  background: #181818;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+}
+
+#uploadBox h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+#uploadBox input {
+  width: 100%;
+  padding: 14px;
+  margin-top: 10px;
+  background: #0f0f0f;
+  color: white;
+  border: 1px solid #333;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+#uploadBox button {
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  background: #ff0000;
+  color: white;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+#uploadBox button:active {
+  transform: scale(0.98);
+}
+
+#status {
+  margin-top: 10px;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+/* VIDEO GRID */
 #videos {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -43,37 +100,33 @@ header {
   padding: 18px;
 }
 
-/* CARD */
+/* VIDEO CARD */
 .video {
   background: #181818;
   border-radius: 16px;
   overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* PLAYER */
+.video:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+}
+
+/* VIDEO PLAYER */
 .video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: #000;
+  background: black;
 }
 
-/* THUMBNAIL */
-.thumbnail {
+.video-player video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  cursor: pointer;
 }
 
-/* VIDEO */
-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* INFO */
+/* VIDEO INFO */
 .video-info {
   padding: 12px;
 }
@@ -81,6 +134,7 @@ video {
 .video-title {
   font-size: 15px;
   font-weight: 600;
+  line-height: 1.4;
   margin: 0;
 }
 
@@ -88,6 +142,18 @@ video {
   font-size: 13px;
   color: #aaa;
   margin-top: 4px;
+}
+
+/* MOBILE */
+@media (max-width: 600px) {
+  #videos {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  #uploadBox {
+    margin: 12px;
+  }
 }
 </style>
 </head>
@@ -98,8 +164,17 @@ video {
   <div class="logo">Edi<span>TV</span></div>
 </header>
 
+<div id="uploadBox">
+  <h2>Upload a video</h2>
+  <input id="title" placeholder="Video title" />
+  <input id="file" type="file" accept="video/*" />
+  <button onclick="upload()">Upload</button>
+  <div id="status"></div>
+</div>
+
 <div id="videos"></div>
 
+<!-- SUPABASE -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
@@ -108,67 +183,99 @@ const supabaseClient = supabase.createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
 );
 
+const fileInput = document.getElementById("file");
+const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
+const statusText = document.getElementById("status");
 
 /* TIME AGO */
 function timeAgo(date) {
-  const s = Math.floor((Date.now() - new Date(date)) / 1000);
-  const m = [[31536000,"year"],[2592000,"month"],[86400,"day"],[3600,"hour"],[60,"minute"]];
-  for (const [t,l] of m) {
-    const v = Math.floor(s/t);
-    if (v >= 1) return `${v} ${l}${v>1?"s":""} ago`;
+  const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+
+  const intervals = [
+    { label: "year", seconds: 31536000 },
+    { label: "month", seconds: 2592000 },
+    { label: "day", seconds: 86400 },
+    { label: "hour", seconds: 3600 },
+    { label: "minute", seconds: 60 }
+  ];
+
+  for (const i of intervals) {
+    const count = Math.floor(seconds / i.seconds);
+    if (count >= 1) {
+      return `${count} ${i.label}${count > 1 ? "s" : ""} ago`;
+    }
   }
   return "Just now";
 }
 
-/* EXTRACT THUMBNAIL */
-function extractThumbnail(videoUrl, imgEl) {
-  const video = document.createElement("video");
-  video.src = videoUrl;
-  video.crossOrigin = "anonymous";
-  video.preload = "metadata";
-  video.muted = true;
-
-  video.onloadedmetadata = () => {
-    video.currentTime = Math.min(0.5, video.duration / 2);
-  };
-
-  video.onseeked = () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0);
-    imgEl.src = canvas.toDataURL("image/jpeg", 0.7);
-    video.remove();
-  };
+/* SANITIZE FILE NAME */
+function sanitize(name) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_.-]/g, "");
 }
 
-/* PLAY VIDEO */
-function playVideo(container, url) {
-  container.innerHTML = `
-    <video controls autoplay playsinline>
-      <source src="${url}">
-    </video>
-  `;
+/* UPLOAD */
+async function upload() {
+  const file = fileInput.files[0];
+  const title = titleInput.value.trim();
+
+  if (!file || !title) {
+    alert("Add a title and select a video");
+    return;
+  }
+
+  statusText.innerText = "Uploading…";
+
+  const safeName = Date.now() + "_" + sanitize(file.name);
+
+  const { error } = await supabaseClient
+    .storage.from("Video")
+    .upload(safeName, file);
+
+  if (error) {
+    statusText.innerText = error.message;
+    return;
+  }
+
+  const { data } = supabaseClient
+    .storage.from("Video")
+    .getPublicUrl(safeName);
+
+  await supabaseClient.from("videos").insert({
+    title,
+    url: data.publicUrl
+  });
+
+  statusText.innerText = "✅ Upload complete";
+  titleInput.value = "";
+  fileInput.value = "";
+
+  loadVideos();
 }
 
 /* LOAD VIDEOS */
 async function loadVideos() {
-  const { data } = await supabaseClient
+  const { data, error } = await supabaseClient
     .from("videos")
     .select("*")
     .order("created_at", { ascending: false });
 
+  if (error) {
+    videosDiv.innerHTML = "Error loading videos";
+    return;
+  }
+
   videosDiv.innerHTML = "";
 
   data.forEach(v => {
-    const id = "thumb_" + Math.random().toString(36).slice(2);
-
     videosDiv.innerHTML += `
       <div class="video">
-        <div class="video-player" id="${id}_container">
-          <img id="${id}" class="thumbnail">
+        <div class="video-player">
+          <video controls playsinline src="${v.url}"></video>
         </div>
         <div class="video-info">
           <p class="video-title">${v.title}</p>
@@ -176,10 +283,6 @@ async function loadVideos() {
         </div>
       </div>
     `;
-
-    const img = document.getElementById(id);
-    extractThumbnail(v.url, img);
-    img.onclick = () => playVideo(document.getElementById(id + "_container"), v.url);
   });
 }
 
