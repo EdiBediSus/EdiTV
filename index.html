@@ -27,16 +27,15 @@ header {
   z-index: 20;
   background: #0f0f0f;
   border-bottom: 1px solid #222;
-  padding: 14px 18px;
+  padding: 14px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  justify-content: center;
 }
 
 .logo {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
-  color: #fff;
+  letter-spacing: 0.5px;
 }
 
 .logo span {
@@ -114,7 +113,7 @@ header {
   box-shadow: 0 10px 30px rgba(0,0,0,0.6);
 }
 
-/* THUMBNAIL AREA */
+/* VIDEO PLAYER */
 .video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -137,6 +136,12 @@ header {
   font-weight: 600;
   line-height: 1.4;
   margin: 0;
+}
+
+.video-meta {
+  font-size: 13px;
+  color: #aaa;
+  margin-top: 4px;
 }
 
 /* MOBILE */
@@ -183,6 +188,28 @@ const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
 const statusText = document.getElementById("status");
 
+/* TIME AGO */
+function timeAgo(date) {
+  const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+
+  const intervals = [
+    { label: "year", seconds: 31536000 },
+    { label: "month", seconds: 2592000 },
+    { label: "day", seconds: 86400 },
+    { label: "hour", seconds: 3600 },
+    { label: "minute", seconds: 60 }
+  ];
+
+  for (const i of intervals) {
+    const count = Math.floor(seconds / i.seconds);
+    if (count >= 1) {
+      return `${count} ${i.label}${count > 1 ? "s" : ""} ago`;
+    }
+  }
+  return "Just now";
+}
+
+/* SANITIZE FILE NAME */
 function sanitize(name) {
   return name
     .normalize("NFD")
@@ -191,6 +218,7 @@ function sanitize(name) {
     .replace(/[^a-zA-Z0-9_.-]/g, "");
 }
 
+/* UPLOAD */
 async function upload() {
   const file = fileInput.files[0];
   const title = titleInput.value.trim();
@@ -229,11 +257,17 @@ async function upload() {
   loadVideos();
 }
 
+/* LOAD VIDEOS */
 async function loadVideos() {
-  const { data } = await supabaseClient
+  const { data, error } = await supabaseClient
     .from("videos")
     .select("*")
     .order("created_at", { ascending: false });
+
+  if (error) {
+    videosDiv.innerHTML = "Error loading videos";
+    return;
+  }
 
   videosDiv.innerHTML = "";
 
@@ -245,6 +279,7 @@ async function loadVideos() {
         </div>
         <div class="video-info">
           <p class="video-title">${v.title}</p>
+          <div class="video-meta">${timeAgo(v.created_at)}</div>
         </div>
       </div>
     `;
