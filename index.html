@@ -1,109 +1,139 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>EdiTV</title>
 
+<!-- GOOGLE FONT -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
 <style>
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
-  background: #0f0f0f;
-  color: white;
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(180deg, #0b0b0b, #121212);
+  color: #fff;
 }
 
+/* HEADER */
 header {
-  background: #181818;
-  padding: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(18,18,18,0.95);
+  backdrop-filter: blur(8px);
+  padding: 16px;
   text-align: center;
   font-size: 22px;
-  font-weight: bold;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #222;
 }
 
+/* UPLOAD BOX */
 #uploadBox {
   max-width: 600px;
-  margin: auto;
-  padding: 12px;
-}
-
-input, button {
-  width: 100%;
-  padding: 10px;
-  margin-top: 8px;
-  border-radius: 6px;
-  border: none;
-}
-
-button {
-  background: red;
-  color: white;
-  font-weight: bold;
-}
-
-#videos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
+  margin: 16px auto;
   padding: 16px;
+  background: #181818;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
 }
 
-.video {
-  background: #181818;
-  border-radius: 12px;
-  overflow: hidden;
+#uploadBox input,
+#uploadBox button {
+  width: 100%;
+  padding: 14px;
+  margin-top: 10px;
+  border-radius: 10px;
+  border: none;
+  font-size: 15px;
+}
+
+#uploadBox input {
+  background: #222;
+  color: white;
+}
+
+#uploadBox button {
+  background: linear-gradient(135deg, #ff0000, #cc0000);
+  color: white;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.thumb {
-  position: relative;
-  aspect-ratio: 16 / 9;
+#uploadBox button:active {
+  transform: scale(0.98);
 }
 
-.thumb img {
+#status {
+  margin-top: 10px;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+/* VIDEOS GRID */
+#videos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+  padding: 16px;
+}
+
+/* VIDEO CARD */
+.video {
+  background: #181818;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  transition: transform 0.2s ease;
+}
+
+.video:hover {
+  transform: translateY(-4px);
+}
+
+/* VIDEO PLAYER */
+.video-player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: black;
+}
+
+.video-player video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
 
-.play {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 56px;
-}
-
+/* TITLE */
 .video h3 {
-  margin: 10px;
-  font-size: 16px;
+  padding: 12px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-#player {
-  position: fixed;
-  inset: 0;
-  background: black;
-  display: none;
-  z-index: 999;
-}
+/* MOBILE OPTIMIZATION */
+@media (max-width: 600px) {
+  #videos {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
 
-#player video {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
+  header {
+    font-size: 20px;
+  }
 
-#close {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  background: rgba(0,0,0,.6);
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  font-size: 16px;
+  #uploadBox {
+    margin: 12px;
+  }
 }
 </style>
 </head>
@@ -113,91 +143,87 @@ button {
 <header>EdiTV</header>
 
 <div id="uploadBox">
-  <input id="title" placeholder="Video title">
-  <input id="file" type="file" accept="video/*">
-  <button onclick="upload()">Upload</button>
-  <div id="status"></div>
+  <input id="title" placeholder="Video title" />
+  <input id="file" type="file" accept="video/*" />
+  <button onclick="upload()">Upload Video</button>
+  <p id="status"></p>
 </div>
 
 <div id="videos"></div>
 
-<div id="player">
-  <button id="close" onclick="closePlayer()">✕</button>
-  <video id="playerVideo" controls playsinline></video>
-</div>
-
+<!-- SUPABASE -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
 const supabaseClient = supabase.createClient(
   "https://fdwzqfufmnuuerbocwys.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
 );
 
+const fileInput = document.getElementById("file");
+const titleInput = document.getElementById("title");
 const videosDiv = document.getElementById("videos");
-const player = document.getElementById("player");
-const playerVideo = document.getElementById("playerVideo");
 const statusText = document.getElementById("status");
 
-function safe(name) {
-  return name.replace(/[^a-z0-9_.-]/gi, "_");
+function sanitize(name) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_.-]/g, "");
 }
 
 async function upload() {
-  const file = document.getElementById("file").files[0];
-  const title = document.getElementById("title").value.trim();
-  if (!file || !title) return alert("Missing data");
+  const file = fileInput.files[0];
+  const title = titleInput.value.trim();
 
-  statusText.innerText = "Uploading...";
+  if (!file || !title) {
+    alert("Please select a video and enter a title");
+    return;
+  }
 
-  const base = Date.now() + "_" + safe(file.name);
-  const videoPath = base;
-  const thumbPath = "thumb_" + base + ".jpg";
+  statusText.innerText = "Uploading…";
 
-  await supabaseClient.storage.from("Video").upload(videoPath, file);
+  const safeName = Date.now() + "_" + sanitize(file.name);
 
-  const videoURL = supabaseClient.storage.from("Video")
-    .getPublicUrl(videoPath).data.publicUrl;
+  const { error } = await supabaseClient
+    .storage.from("Video")
+    .upload(safeName, file);
 
-  const thumbBlob = await new Promise(res => {
-    const v = document.createElement("video");
-    v.src = URL.createObjectURL(file);
-    v.onloadeddata = () => {
-      const c = document.createElement("canvas");
-      c.width = 320;
-      c.height = v.videoHeight * (320 / v.videoWidth);
-      c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
-      c.toBlob(b => res(b), "image/jpeg", 0.8);
-    };
-  });
+  if (error) {
+    statusText.innerText = error.message;
+    return;
+  }
 
-  await supabaseClient.storage.from("Video").upload(thumbPath, thumbBlob);
-
-  const thumbURL = supabaseClient.storage.from("Video")
-    .getPublicUrl(thumbPath).data.publicUrl;
+  const { data } = supabaseClient
+    .storage.from("Video")
+    .getPublicUrl(safeName);
 
   await supabaseClient.from("videos").insert({
     title,
-    url: videoURL,
-    thumbnail: thumbURL
+    url: data.publicUrl
   });
 
-  statusText.innerText = "✅ Uploaded";
-  load();
+  statusText.innerText = "✅ Uploaded!";
+  titleInput.value = "";
+  fileInput.value = "";
+
+  loadVideos();
 }
 
-async function load() {
+async function loadVideos() {
   const { data } = await supabaseClient
     .from("videos")
     .select("*")
     .order("created_at", { ascending: false });
 
   videosDiv.innerHTML = "";
+
   data.forEach(v => {
     videosDiv.innerHTML += `
-      <div class="video" onclick="play('${v.url}')">
-        <div class="thumb">
-          <img src="${v.thumbnail}">
-          <div class="play">▶</div>
+      <div class="video">
+        <div class="video-player">
+          <video controls playsinline src="${v.url}"></video>
         </div>
         <h3>${v.title}</h3>
       </div>
@@ -205,18 +231,8 @@ async function load() {
   });
 }
 
-function play(url) {
-  player.style.display = "block";
-  playerVideo.src = url;
-  playerVideo.play();
-}
-
-function closePlayer() {
-  playerVideo.pause();
-  player.style.display = "none";
-}
-
-load();
+loadVideos();
 </script>
+
 </body>
 </html>
