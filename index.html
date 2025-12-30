@@ -33,7 +33,6 @@ header {
   font-size: 24px;
   font-weight: 700;
 }
-
 .logo span { color: #ff0000; }
 
 /* UPLOAD */
@@ -66,7 +65,10 @@ header {
   font-weight: 600;
 }
 
-#status { margin-top: 10px; font-size: 14px; }
+#status {
+  margin-top: 10px;
+  font-size: 14px;
+}
 
 /* GRID */
 #videos {
@@ -83,31 +85,19 @@ header {
   overflow: hidden;
 }
 
-/* PLAYER */
+/* PLAYER (THUMBNAIL) */
 .video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
   background: black;
-  position: relative;
+  cursor: pointer;
 }
 
 .video-player video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-/* PLAY OVERLAY */
-.play-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 60px;
-  color: white;
-  background: rgba(0,0,0,0.3);
-  cursor: pointer;
+  display: block;
 }
 
 /* INFO */
@@ -177,12 +167,11 @@ function timeAgo(date) {
   return "Just now";
 }
 
-/* LOAD VIDEO ON CLICK */
-function playVideo(el, url) {
-  const video = el.previousElementSibling;
+/* CLICK TO PLAY */
+function activateVideo(video, url) {
+  video.controls = true;
   video.src = url;
   video.play();
-  el.remove();
 }
 
 /* LOAD VIDEOS */
@@ -198,8 +187,12 @@ async function loadVideos() {
     videosDiv.innerHTML += `
       <div class="video">
         <div class="video-player">
-          <video preload="metadata" controls playsinline></video>
-          <div class="play-overlay" onclick="playVideo(this, '${v.url}')">▶</div>
+          <video
+            preload="metadata"
+            muted
+            playsinline
+            onclick="activateVideo(this, '${v.url}')">
+          </video>
         </div>
         <div class="video-info">
           <p class="video-title">${v.title}</p>
