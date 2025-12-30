@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watch – EdiTV</title>
+<style>
+body {
+  margin: 0;
+  background: black;
+  color: white;
+  font-family: system-ui;
+}
+header {
+  padding: 12px;
+  background: #181818;
+  text-align: center;
+}
+video {
+  width: 100%;
+  height: auto;
+  background: black;
+}
+.title {
+  padding: 12px;
+  font-size: 18px;
+}
+</style>
+</head>
+<body>
+
+<header>EdiTV</header>
+<video id="player" controls playsinline></video>
+<div class="title" id="title"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const supabaseClient = supabase.createClient(
+  "https://fdwzqfufmnuuerbocwys.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkd3pxZnVmbW51dWVyYm9jd3lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MjMzMTksImV4cCI6MjA4MjQ5OTMxOX0.v1lFWEyX3fuYL8riWa6D3s3zELn2pskeTJyg-63tWdE"
+);
+
+const id = new URLSearchParams(location.search).get("id");
+
+async function loadVideo() {
+  const { data } = await supabaseClient
+    .from("videos")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  document.getElementById("player").src = data.url;
+  document.getElementById("title").innerText = data.title;
+}
+
+loadVideo();
+</script>
+</body>
+</html>
